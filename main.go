@@ -16,17 +16,19 @@ import (
 func main() {
 
 	// Parse CLI flags
-	directorURL := flag.String("director", "", "BOSH Directory URL")
-	username := flag.String("username", "", "BOSH Username")
-	password := flag.String("password", "", "BOSH Password")
-	caPath := flag.String("ca", "", "Path to CA Cert")
-	deploymentName := flag.String("deployment", "", "Name of deployment")
-	interval := flag.Int("interval", 60, "Chaos interval to kill machines, in seconds")
+	configPath := flag.String("config", "./config.json", "Path to config file")
 	dryRun := flag.Bool("dry", false, "Dry Run")
 	flag.Parse()
 
+	conf := parseConfig(*configPath)
+
+	// Read CA
+	f, _ := os.Open(conf.CAPath)
+	reader := bufio.NewReader(f)
+	caContent, _ := ioutil.ReadAll(reader)
+
 	// Connect to BOSH director
-	director, err := buildDirector(*directorURL, *username, *password, *caPath)
+	director, err := buildDirector(conf.DirectorURL, conf.Username, conf.Password, string(caContent))
 	if err != nil {
 		panic(err)
 	}
@@ -44,17 +46,17 @@ func main() {
 		panic(err)
 	}
 	for _, dep := range deps {
-		if dep.Name() == *deploymentName {
+		if dep.Name() == conf.DeploymentName {
 			monkeyDep = dep
 		}
 	}
 
 	if monkeyDep == nil {
-		fmt.Printf("Could not find deployment named \"%s\", exiting\n", *deploymentName)
+		fmt.Printf("Could not find deployment named \"%s\", exiting\n", conf.DeploymentName)
 		return
 	}
 
-	go monkey(monkeyDep, *interval, *dryRun)
+	go monkey(monkeyDep, conf.KillInterval, *dryRun)
 
 	// This probably isn't how you're supposed to do this
 	for true {
@@ -62,7 +64,7 @@ func main() {
 	}
 }
 
-func buildDirector(directorURL string, username string, password string, caPath string) (boshdir.Director, error) {
+func buildDirector(directorURL string, username string, password string, ca string) (boshdir.Director, error) {
 	logger := boshlog.NewLogger(boshlog.LevelError)
 	factory := boshdir.NewFactory(logger)
 
@@ -71,14 +73,9 @@ func buildDirector(directorURL string, username string, password string, caPath 
 		return nil, err
 	}
 
-	// Read CA
-	f, _ := os.Open(caPath)
-	reader := bufio.NewReader(f)
-	content, _ := ioutil.ReadAll(reader)
-
 	config.Client = username
 	config.ClientSecret = password
-	config.CACert = string(content)
+	config.CACert = ca
 
 	return factory.New(config, boshdir.NewNoopTaskReporter(), boshdir.NewNoopFileReporter())
 }
