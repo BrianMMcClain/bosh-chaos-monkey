@@ -27,3 +27,9 @@ Additional Flags
 |Flag|Description|
 |---|---|
 |`-dry`|Dry run only, only logs which machine would be killed|
+
+TODO
+---
+- Kill the VM at the IaaS level, currently all delete commands are going through BOSH, which is a good start, but could be better
+- Ensure both basic and UAA auth work
+- Add support for SOCKS5 proxy through the jumpbox that [bbl](https://github.com/cloudfoundry/bosh-bootloader) sets up
